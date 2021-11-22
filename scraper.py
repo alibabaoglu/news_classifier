@@ -1,61 +1,50 @@
-import requests, json
-import csv
-
-import sys
-import time
-import re
+import requests
 from bs4 import BeautifulSoup
+import pandas as pd
+from tqdm import tqdm
+import os
+
+# The website categories
+category = [ 'wissenschaft', 'kultur', 'geschichte']
+
+# Create a dictionary for articles
+my_dict={}
+# Number of pages that will be scraped for every categotry
+MAX_PAGES =500
+# Indexing the articles
+article_num = 1
+
+for cat in category:
+    for page in tqdm(range(1,MAX_PAGES)): 
+        url = "https://www.spiegel.de/{}/p{}".format(cat,page)
+        r = requests.get(url)
+        soup = BeautifulSoup(r.content, 'html.parser')
+
+        articles = soup.select('article') # select all articles
+        for a in articles:
+            # Select the articles' titles from attribute 'aria-label'
+            my_dict[article_num]={"title":a.get('aria-label')}
+            
+            # Select the articles' summary from class 'leading-loose'
+            my_dict[article_num].update({"text":"".join([x.text.strip()
+                                                            for x in a.select('.leading-loose')])
+                                        })
+            # Add the category
+            my_dict[article_num].update({"category":cat})
+            
+            # index' Increment  
+            article_num +=1
 
 
-headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+print(my_dict)
 
-# url = "https://www.tagesschau.de/newsticker.rdf"
-# r = requests.get(url, headers=headers)
-# c = r.content
-# soup = BeautifulSoup(c, features='xml')
-# title = soup.find_all('title')
-# desc = soup.find_all("description")
 
-def hackernews_rss():
-    article_list = [['Titel', 'Description','Category']]
-    r = requests.get('https://www.tagesschau.de/xml/rss2/')
-    soup = BeautifulSoup(r.content, features='xml')
-    articles = soup.findAll('item')
-   
-   
 
-    
-    for a in articles:
+
        
-        
-        title = a.find('title').text.replace(',', '')
-        description=a.find("description").text.replace(',', '')
-        category= re.search("https://.*/(\w*)/",a.find('link').text).group(1);
-        article = [title,
-                description,category]
-
-                
-        article_list.append(article)
-
-    print(len(article_list))
-    return article_list
-
-
-list =hackernews_rss()
-
-
-
-#print(list[1][0])
-
-# with open('news.csv', 'r') as csv_file:
-#     csv_reader = csv.DictReader(csv_file)
-#     for line in csv_reader:
-#         print(line)
-
-with open('news.csv', 'w',newline='') as new_file:
-        
-
-        csv_writer = csv.writer(new_file, delimiter='\t')
-
-        
-        csv_writer.writerows(list)
+  
+df = pd.DataFrame.from_dict(data=my_dict, orient='index')
+    # Drop duplicate articles
+df2 = df.drop_duplicates(subset='title', keep='first')
+    # Save as csv as utf-16 due to spicial German charachters
+df2.to_csv('DerSpiegel2.csv', index=False, encoding = 'utf-8')
